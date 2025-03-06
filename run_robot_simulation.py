@@ -406,6 +406,46 @@ class PhysicsEngine:
         
         return entity
     
+    def _check_entity_collision(self, entity1, entity2):
+        """
+        Überprüft Kollision zwischen zwei Entitäten.
+        Gibt Kollisionsinformationen zurück, wenn eine Kollision erkannt wird.
+        """
+        # Positionen und Kollisionsradien abrufen
+        pos1 = entity1.get('position', np.zeros(3))
+        pos2 = entity2.get('position', np.zeros(3))
+        radius1 = entity1.get('collision_radius', 0.5)
+        radius2 = entity2.get('collision_radius', 0.5)
+        
+        # Abstand zwischen den Entitäten berechnen
+        distance_vector = pos2 - pos1
+        distance = np.linalg.norm(distance_vector)
+        
+        # Kollisionserkennung: Wenn der Abstand kleiner als die Summe der Radien ist
+        if distance < radius1 + radius2:
+            # Normalisiere den Richtungsvektor
+            if distance > 0:
+                normal = distance_vector / distance
+            else:
+                # Wenn die Entitäten an der gleichen Position sind, verwenden wir einen Standard-Normalvektor
+                normal = np.array([1.0, 0.0, 0.0])
+            
+            # Überlappung berechnen
+            overlap = (radius1 + radius2) - distance
+            
+            # Kollisionsinformationen zurückgeben
+            return {
+                'type': 'entity_entity',
+                'entity1_id': entity1.get('id', -1),
+                'entity2_id': entity2.get('id', -1),
+                'position': pos1 + normal * radius1,  # Kollisionspunkt
+                'normal': normal,
+                'overlap': overlap
+            }
+        
+        # Keine Kollision
+        return None
+
     def detect_collisions(self, entities, terrain=None):
         """
         Erkennt Kollisionen zwischen Entitäten und mit dem Terrain.
@@ -2833,8 +2873,14 @@ class RobotNeuralController:
         # Kombiniere alle verarbeiteten Eingaben
         if len(processed_inputs) > 1:
             combined = Concatenate()(processed_inputs)
-        else:
+        elif len(processed_inputs) == 1:
             combined = processed_inputs[0]
+        else:
+            # Fallback wenn keine Sensordaten verfügbar sind
+            print("Warnung: Keine Sensordaten verfügbar. Erstelle Fallback-Eingabeschicht.")
+            dummy_input = Input(shape=(10,))
+            combined = Dense(32, activation='relu')(dummy_input)
+            inputs.append(dummy_input)
         
         # Füge versteckte Schichten hinzu
         for units in self.hidden_layers:
